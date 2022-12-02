@@ -25,10 +25,10 @@ class Env(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    def wx_login(self) -> str:
+    def wx_login(self) -> dict:
         token = self.cache.get('token', default=False)
         if token:
-            return token
+            return {'token': token}
         else:
             __login_wxapp_response = requests.post(url=self.wx_app_host + '/xct/auth/customerLoginByWeixin',
                                                    json={
@@ -40,15 +40,17 @@ class Env(BaseModel):
             if __login_wxapp_response.status_code != 200:
                 raise Exception("小程序服务正在重启，无法拿到token")
             try:
-                self.cache.set('token', __login_wxapp_response.json()['data']['token'])
+                token = __login_wxapp_response.json()['data']['token']
+                self.cache.set('token', token)
+                return {'token': token}
             except KeyError:
                 print("小程序code失效请重新输入")
                 sys.exit(1)
 
-    def backend_login(self) -> str:
+    def backend_login(self) -> dict:
         x_token = self.cache.get('x-token', default=False)
         if x_token:
-            return x_token
+            return {'x-token': x_token}
         else:
             __login_backend_response = requests.post(url=self.backend_host + '/user/login',
                                                      json={
@@ -60,15 +62,17 @@ class Env(BaseModel):
             if __login_backend_response.status_code != 200:
                 raise Exception("后台服务正在重启，无法拿到token")
             try:
-                self.cache.set('x-token', __login_backend_response.json()['data']['token'])
+                x_token = __login_backend_response.json()['data']['token']
+                self.cache.set('x-token', x_token)
+                return {'x-token': x_token}
             except TypeError:
                 print("后台用户名密码有误，请修改配置文件")
                 sys.exit(1)
 
-    def backend_login_no_permission(self):
+    def backend_login_no_permission(self) -> dict:
         x_token_no_permission = self.cache.get('x-token-no-permissions', default=False)
         if x_token_no_permission:
-            return x_token_no_permission
+            return {'x-token': x_token_no_permission}
         else:
             __login_backend_response = requests.post(url=self.backend_host + '/user/login',
                                                      json={
@@ -80,7 +84,9 @@ class Env(BaseModel):
             if __login_backend_response.status_code != 200:
                 raise Exception("后台服务正在重启，无法拿到token")
             try:
-                self.cache.set('x-token-no-permissions', __login_backend_response.json()['data']['token'])
+                x_token_no_permission = __login_backend_response.json()['data']['token']
+                self.cache.set('x-token-no-permissions', x_token_no_permission)
+                return {'x-token': x_token_no_permission}
             except TypeError:
                 print("后台用户名密码有误，请修改配置文件")
                 sys.exit(1)
