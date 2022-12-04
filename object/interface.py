@@ -24,12 +24,12 @@ class interface(BaseModel):
     files: Optional[Dict]
     optional: Optional[List]
 
-    def seturl(self) -> None:
+    def __seturl(self) -> None:
         self.url = self.host + self.interface_address
         self.host, self.interface_address = None, None
 
-    def get_params_correct_data_and_params_error_list(self, params_dict: dict, correct_list: list = None,
-                                                      error_list: list = None) -> (list, list):
+    def __get_params_correct_data_and_params_error_list(self, params_dict: dict, correct_list: list = None,
+                                                        error_list: list = None) -> (list, list):
         if correct_list is None:
             correct_list = []
         if error_list is None:
@@ -37,7 +37,7 @@ class interface(BaseModel):
 
         for key, value in params_dict.items():
             if isinstance(value, dict):
-                self.get_params_correct_data_and_params_error_list(value, correct_list, error_list)
+                self.__get_params_correct_data_and_params_error_list(value, correct_list, error_list)
 
             elif isinstance(value, list):
                 for lis in value:
@@ -60,8 +60,8 @@ class interface(BaseModel):
 
         return correct_list, error_list
 
-    def get_all_correct_data_and_all_error_list(self) -> [list, list]:
-        self.seturl()
+    def __get_all_correct_data_and_all_error_list(self) -> [list, list]:
+        self.__seturl()
         model = self.dict()
         query_dict = model.get('params', None)
         body_dict = model.get('json_', None)
@@ -70,28 +70,28 @@ class interface(BaseModel):
         correct = []
         error = []
         if query_dict:
-            query_add, query_error_dict = self.get_params_correct_data_and_params_error_list(query_dict)
+            query_add, query_error_dict = self.__get_params_correct_data_and_params_error_list(query_dict)
             correct.extend(query_add)
             error.extend(query_error_dict)
 
         if body_dict:
-            body_add, body_error_dict = self.get_params_correct_data_and_params_error_list(body_dict)
+            body_add, body_error_dict = self.__get_params_correct_data_and_params_error_list(body_dict)
             correct.extend(body_add)
             error.extend(body_error_dict)
 
         if data_dict:
-            data_add, data_error_dict = self.get_params_correct_data_and_params_error_list(data_dict)
+            data_add, data_error_dict = self.__get_params_correct_data_and_params_error_list(data_dict)
             correct.extend(data_add)
             error.extend(data_error_dict)
 
         return correct, error
 
-    def check_is_no_request_params(self, correct: list, error: list) -> bool:
+    def __check_is_no_request_params(self, correct: list, error: list) -> bool:
         if (correct == [] and error == []) or (len(correct) == 1 and correct[0] == {'token': ['None']}):
             return True
         return False
 
-    def get_correct_requests(self, correct: list, dict_model: dict) -> list:
+    def __get_correct_requests(self, correct: list, dict_model: dict) -> list:
 
         lis = []
         lis_key = []
@@ -113,7 +113,7 @@ class interface(BaseModel):
 
         return correct_list
 
-    def check_whether_is_eligible(self, d: dict, condition_dict: dict) -> bool:
+    def __check_whether_is_eligible(self, d: dict, condition_dict: dict) -> bool:
 
         flag = True
 
@@ -122,11 +122,11 @@ class interface(BaseModel):
                 flag = False
 
             if isinstance(d[key], dict):
-                flag = self.check_whether_is_eligible(d[key], condition_dict)
+                flag = self.__check_whether_is_eligible(d[key], condition_dict)
 
         return flag
 
-    def filter_optional_parameters(self, correct_list: list, optional_list: list, request_list: list) -> None:
+    def __filter_optional_parameters(self, correct_list: list, optional_list: list, request_list: list) -> None:
 
         for optional in optional_list:
             delete_keys = []
@@ -136,7 +136,7 @@ class interface(BaseModel):
 
                 for correct in correct_list:
 
-                    if self.check_whether_is_eligible(correct, condition_dict):
+                    if self.__check_whether_is_eligible(correct, condition_dict):
                         info = '当' + optional.split('|')[0] + '时' + optional.split('|')[1] + '不传入'
                         correct = deepcopy(correct)
 
@@ -155,7 +155,7 @@ class interface(BaseModel):
                 delete_keys_from_dict_by_keys(correct, delete_keys)
                 request_list.append({info: correct})
 
-    def get_error_requests(self, error_list: list, correct_model: dict, request_list: list) -> None:
+    def __get_error_requests(self, error_list: list, correct_model: dict, request_list: list) -> None:
         for d in error_list:
             for k, v in d.items():
                 for value in v:
@@ -164,7 +164,7 @@ class interface(BaseModel):
                     update_dict(model_dict, {k: value.split(':')[1]})
                     request_list.append({info: model_dict})
 
-    def set_auth_requests(self, request_list: list, correct: dict, env: Env) -> None:
+    def __set_auth_requests(self, request_list: list, correct: dict, env: Env) -> None:
         try:
             if self.headers['x-token'] is None:
                 for request in request_list:
@@ -185,7 +185,7 @@ class interface(BaseModel):
             update_dict(request_token_invalid, {'token': 'xxx'})
             request_list.append({'token无效': request_token_invalid})
 
-    def delete_all_value_is_none(self, request_list: list) -> None:
+    def __delete_all_value_is_none(self, request_list: list) -> None:
 
         for request in request_list:
             delete_keys = []
@@ -200,17 +200,18 @@ class interface(BaseModel):
             delete_keys_from_dict_by_keys(request, delete_keys)
             request.update(add)
 
-    def get_all_requests(self, correct: list, error: list, env: Env) -> list:
+    def get_all_requests(self, env: Env) -> list:
         request_list = []
-        correct_list = self.get_correct_requests(correct, self.dict())
-        if self.check_is_no_request_params(correct, error):
+        correct, error = self.__get_all_correct_data_and_all_error_list()
+        correct_list = self.__get_correct_requests(correct, self.dict())
+        if self.__check_is_no_request_params(correct, error):
             request_list.append({'没有任何参数的请求': self.dict()})
         else:
             request_list.append({'所有都传入正确项': correct_list[0]})
             if self.optional is not None:
-                self.filter_optional_parameters(correct_list, self.optional, request_list)
-            self.get_error_requests(error, correct_list[0], request_list)
-        self.set_auth_requests(request_list, correct_list[0], env)
-        self.delete_all_value_is_none(request_list)
+                self.__filter_optional_parameters(correct_list, self.optional, request_list)
+            self.__get_error_requests(error, correct_list[0], request_list)
+        self.__set_auth_requests(request_list, correct_list[0], env)
+        self.__delete_all_value_is_none(request_list)
 
         return request_list
