@@ -6,25 +6,27 @@
 import itertools
 import object.env as Env
 from copy import deepcopy
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Text, Dict, Optional, List
 from utils.dict_operate import update_dict, delete_keys_from_dict_by_keys
 
 
 class interface(BaseModel):
     interface_name: Text
-    host: Text
+    host: Optional[Text]
     url: Optional[Text]
-    address: Text
+    interface_address: Optional[Text]
     method: Text
     headers: Optional[Dict]
-    query: Optional[Dict]
-    body: Optional[Dict]
+    params: Optional[Dict]
+    json_: Optional[Dict] = Field(alias='json')
     data: Optional[Dict]
+    files: Optional[Dict]
     optional: Optional[List]
 
-    def seturl(self) -> str:
-        return self.host + self.address
+    def seturl(self) -> None:
+        self.url = self.host + self.interface_address
+        self.host, self.interface_address = None, None
 
     def get_params_correct_data_and_params_error_list(self, params_dict: dict, correct_list: list = None,
                                                       error_list: list = None) -> (list, list):
@@ -59,10 +61,10 @@ class interface(BaseModel):
         return correct_list, error_list
 
     def get_all_correct_data_and_all_error_list(self) -> [list, list]:
-        self.url = self.seturl()
+        self.seturl()
         model = self.dict()
-        query_dict = model.get('query', None)
-        body_dict = model.get('body', None)
+        query_dict = model.get('params', None)
+        body_dict = model.get('json_', None)
         data_dict = model.get('data', None)
 
         correct = []
@@ -183,16 +185,32 @@ class interface(BaseModel):
             update_dict(request_token_invalid, {'token': 'xxx'})
             request_list.append({'token无效': request_token_invalid})
 
+    def delete_all_value_is_none(self, request_list: list) -> None:
+
+        for request in request_list:
+            delete_keys = []
+            add = {}
+            for key, value in list(request.values())[0].items():
+                if value is None or key == 'optional':
+                    delete_keys.append(key)
+                if key == 'json_' and value:
+                    delete_keys.append(key)
+                    add = {'json': value}
+
+            delete_keys_from_dict_by_keys(request, delete_keys)
+            request.update(add)
+
     def get_all_requests(self, correct: list, error: list, env: Env) -> list:
         request_list = []
+        correct_list = self.get_correct_requests(correct, self.dict())
         if self.check_is_no_request_params(correct, error):
             request_list.append({'没有任何参数的请求': self.dict()})
         else:
-            correct_list = self.get_correct_requests(correct, self.dict())
             request_list.append({'所有都传入正确项': correct_list[0]})
             if self.optional is not None:
                 self.filter_optional_parameters(correct_list, self.optional, request_list)
             self.get_error_requests(error, correct_list[0], request_list)
-            self.set_auth_requests(request_list, correct_list[0], env)
+        self.set_auth_requests(request_list, correct_list[0], env)
+        self.delete_all_value_is_none(request_list)
 
         return request_list
