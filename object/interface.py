@@ -168,19 +168,19 @@ class interface(BaseModel):
         try:
             if self.headers['x-token'] is None:
                 for request in request_list:
-                    update_dict(request, env.backend_login())
+                    update_dict(request, env._Env__backend_login())
 
                 request_xtoken_invalid = deepcopy(correct)
                 update_dict(request_xtoken_invalid, {'x-token': 'xxx'})
                 request_xtoken_no_permission = deepcopy(correct)
-                update_dict(request_xtoken_no_permission, env.backend_login_no_permission())
+                update_dict(request_xtoken_no_permission, env._Env__backend_login_no_permission())
 
                 request_list.append({'x-token无效': request_xtoken_invalid})
                 request_list.append({'x-token无权限': request_xtoken_no_permission})
 
         except KeyError:
             for request in request_list:
-                update_dict(request, env.wx_login())
+                update_dict(request, env._Env__wx_login())
             request_token_invalid = deepcopy(correct)
             update_dict(request_token_invalid, {'token': 'xxx'})
             request_list.append({'token无效': request_token_invalid})
@@ -196,6 +196,9 @@ class interface(BaseModel):
                 if key == 'json_' and value:
                     delete_keys.append(key)
                     add = {'json': value}
+                if key == 'files' and value:
+                    for k, v in value.items():
+                        value[k] = open(v, 'rb')
 
             delete_keys_from_dict_by_keys(request, delete_keys)
             request.update(add)
