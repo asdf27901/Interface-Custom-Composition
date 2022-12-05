@@ -23,9 +23,17 @@ class Env(BaseModel):
     cache: diskcache.Cache = Cache('./cache/user_cache')
 
     class Config:
-        arbitrary_types_allowed = True
+        arbitrary_types_allowed = True  # 设置BaseModel参数类型为所有类型，False为只适用typing类型
 
     def __wx_login(self) -> dict:
+        '''
+        先从文件缓存中获取小程序token
+        如果缓存中存在，去判断token是否失效，不失效则返回token，失效则终止程序
+        如果缓存中不存在，调用微信静默登陆接口，将token先存入文件缓存中，再将token以字典形式返回
+
+        :return: 返回字典类型小程序token
+        '''
+
         token = self.cache.get('token', default=False)
         if token:
             response = requests.post(url=self.wx_app_host + '/xct/message/countMessage',
@@ -59,6 +67,14 @@ class Env(BaseModel):
                 sys.exit(1)
 
     def __backend_login(self) -> dict:
+        '''
+        先从文件缓存中获取后台x-token
+        如果缓存中存在，直接将x-token以字典形式返回
+        如果缓存中不存在，调用后台登陆接口，将x-token先存入文件缓存中，再将x-token以字典形式返回
+
+        :return: 返回字典类型后台x-token
+        '''
+
         x_token = self.cache.get('x-token', default=False)
         if x_token:
             return {'x-token': x_token}
@@ -81,6 +97,14 @@ class Env(BaseModel):
                 sys.exit(1)
 
     def __backend_login_no_permission(self) -> dict:
+        '''
+        先从文件缓存中获取后台无权限x-token-no-permissions
+        如果缓存中存在，直接将x-token以字典形式返回
+        如果缓存中不存在，调用后台登陆接口，将x-token先存入文件缓存中，再将x-token以字典形式返回
+
+        :return: 返回字典类型后台x-token
+        '''
+
         x_token_no_permission = self.cache.get('x-token-no-permissions', default=False)
         if x_token_no_permission:
             return {'x-token': x_token_no_permission}
@@ -102,5 +126,9 @@ class Env(BaseModel):
                 print("后台用户名密码有误，请修改配置文件")
                 sys.exit(1)
 
-    def del_cache(self):
+    def del_cache(self) -> None:
+        '''
+        删除缓存文件
+        :return: None
+        '''
         self.cache.expire()
