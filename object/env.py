@@ -25,9 +25,20 @@ class Env(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    def wx_login(self) -> dict:
+    def __wx_login(self) -> dict:
         token = self.cache.get('token', default=False)
         if token:
+            response = requests.post(url=self.wx_app_host + '/xct/message/countMessage',
+                                     json={
+                                         'token': token
+                                     },
+                                     headers={'Content-Type': 'application/json;charset=UTF-8'})
+            if response.status_code != 200:
+                raise Exception("小程序服务正在重启，请稍后再试")
+            if response.text.__contains__('Token 失效'):
+                print("Token已经失效，请重新获取小程序code")
+                sys.exit(1)
+
             return {'token': token}
         else:
             __login_wxapp_response = requests.post(url=self.wx_app_host + '/xct/auth/customerLoginByWeixin',
@@ -47,7 +58,7 @@ class Env(BaseModel):
                 print("小程序code失效请重新输入")
                 sys.exit(1)
 
-    def backend_login(self) -> dict:
+    def __backend_login(self) -> dict:
         x_token = self.cache.get('x-token', default=False)
         if x_token:
             return {'x-token': x_token}
@@ -69,7 +80,7 @@ class Env(BaseModel):
                 print("后台用户名密码有误，请修改配置文件")
                 sys.exit(1)
 
-    def backend_login_no_permission(self) -> dict:
+    def __backend_login_no_permission(self) -> dict:
         x_token_no_permission = self.cache.get('x-token-no-permissions', default=False)
         if x_token_no_permission:
             return {'x-token': x_token_no_permission}
