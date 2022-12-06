@@ -298,6 +298,8 @@ class interface(BaseModel):
                 if key == 'json_' and value:
                     delete_keys.append(key)
                     add = {'json': value}
+                if key == 'interface_name' and value:
+                    delete_keys.append(key)
                 if key == 'files' and value:
                     for k, v in value.items():
                         value[k] = open(v, 'rb')

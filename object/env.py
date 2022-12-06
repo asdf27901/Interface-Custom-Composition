@@ -125,11 +125,3 @@ class Env(BaseModel):
             except TypeError:
                 print("后台用户名密码有误，请修改配置文件")
                 sys.exit(1)
-
-    def del_cache(self) -> None:
-        """
-        删除缓存文件
-
-        :return: None
-        """
-        self.cache.expire()
