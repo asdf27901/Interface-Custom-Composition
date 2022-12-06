@@ -303,7 +303,7 @@ class interface(BaseModel):
                         value[k] = open(v, 'rb')
 
             delete_keys_from_dict_by_keys(request, delete_keys)
-            request.update(add)
+            list(request.values())[0].update(add)
 
     def get_all_requests(self, env: Env) -> list:
         """
