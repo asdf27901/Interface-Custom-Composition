@@ -8,8 +8,11 @@ import os
 # 定义日志输出格式 结束
 simple_format = '%(asctime)s - %(levelname)-7s - %(filename)s - %(lineno)4d - %(threadName)s - %(message)s'
 
+path = lambda p: os.path.abspath(
+    os.path.join(os.path.dirname(__file__), p)
+)
 
-logfile_dir = '../log/'     # log文件的目录
+logfile_dir = path('../log/')     # log文件的目录
 
 logfile_name = 'test.log'  # log文件名
 
