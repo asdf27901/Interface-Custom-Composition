@@ -198,6 +198,22 @@
     file1: /Users/xxx/Desktop/xxx-报销单.xls # 传入文件路径 file1指参数名
     file2: /Users/xxx/Desktop/xxx-报销单.xls # 传入文件路径 file2指参数名
 ```
++ 请求有query参数，请求体，需要下载文件（后台接口）
+```yaml
+- host: *backend_host
+  interface_address: /sample/export
+  interface_name: 样品导出
+  method: post
+  headers:
+    Content-Type: application/json;charset=UTF-8
+    Connection: keep-alive
+    x-token: # x-token无需传值
+  json:
+    businessNo: BU0000000308
+  download: # 需要增加download字段
+    file_name: 样品导出文件.xlsx  # 下载完成后的文件名
+```
+
 + 对于一些必填参数和可选参数，可以通过optional参数去去除
   + optional存在一些弊端 
      - 错误参数不会和可选参数绑定，仍然是和所有正确参数发送，例如下方只是将id替换为错误值
