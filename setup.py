@@ -16,7 +16,7 @@ except FileNotFoundError:
 env = Env.parse_obj(yaml_data.pop(0)['env'])
 for data in yaml_data:
     interface = Interface.parse_obj(data)
-    request_list = interface.get_all_requests(env)
+    request_list, filepath = interface.get_all_requests(env)
     length = len(request_list)
     index = 1
 
@@ -31,6 +31,6 @@ for data in yaml_data:
             print('正在进行第{index}种情况，\033[0;31m{info}\033[0m'.format(index=index, info=info))
             log.debug('正在进行第{index}种情况，{info}'.format(index=index, info=info))
             response = requests.request(**value)
-            responseAssert(response=response).get_request_message().check_response_message()
+            responseAssert(response=response, filepath=filepath).get_request_message().check_response_message()
             input('按下回车继续')
             index += 1

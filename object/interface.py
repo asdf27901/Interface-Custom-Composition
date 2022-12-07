@@ -4,13 +4,17 @@
 # File: interface.py
 
 import itertools
+import os
 import object.env as Env
 from copy import deepcopy
 from pydantic import BaseModel, Field
-from typing import Text, Dict, Optional, List
+from typing import Text, Dict, Optional, List, Any
 from utils.dict_operate import update_dict, delete_keys_from_dict_by_keys
 from utils.logger import log
 
+path = lambda p: os.path.abspath(
+    os.path.join(os.path.dirname(__file__), p)
+)
 
 class interface(BaseModel):
     interface_name: Text
@@ -24,6 +28,7 @@ class interface(BaseModel):
     data: Optional[Dict]
     files: Optional[Dict]
     optional: Optional[List]
+    download: Optional[Dict]
 
     def __seturl(self) -> None:
         self.url = self.host + self.interface_address
@@ -285,6 +290,17 @@ class interface(BaseModel):
             # 新增一个错误请求：token无效
             request_list.append({'token无效': request_token_invalid})
 
+    def __create_download_file(self) -> str:
+        """
+        判断是否是下载文件请求
+
+        :return:
+        """
+        filename = self.download['file_name']
+        filepath = os.path.join(path('../download/'), filename)
+        self.download = None
+        return filepath
+
     def __delete_all_value_is_none(self, request_list: list) -> None:
         """
         删除请求参数中value为None的key/key为optional
@@ -313,7 +329,7 @@ class interface(BaseModel):
             delete_keys_from_dict_by_keys(request, delete_keys)
             list(request.values())[0].update(add)
 
-    def get_all_requests(self, env: Env) -> list:
+    def get_all_requests(self, env: Env) -> [list, Any]:
         """
         生成所有正确的请求和错误请求列表
 
@@ -322,10 +338,13 @@ class interface(BaseModel):
         """
 
         request_list = []
+        filepath = None
         # 获得params、json、data、files中所有正确和错误的参数列表
         correct, error = self.__get_all_correct_data_and_all_error_list()
         log.debug('正确的参数{}'.format(correct))
         log.debug('错误的参数{}'.format(error))
+        if self.download:
+            filepath = self.__create_download_file()
         # 所有可能的正确参数进行笛卡尔积，生成所有可能的正确参数请求列表
         correct_list = self.__get_correct_requests(correct, self.dict())
         # 判断是否为无参数请求
@@ -335,7 +354,7 @@ class interface(BaseModel):
             for correct in correct_list:
                 request_list.append({'所有都传入正确项': correct})
             # 如果self.optional不为空，要进行筛选项过滤
-            if self.optional is not None:
+            if self.optional:
                 # 过滤可选参数
                 self.__filter_optional_parameters(correct_list, self.optional, request_list)
             # 取得所有错误参数请求列表
@@ -345,4 +364,4 @@ class interface(BaseModel):
         # 删除key为None的key
         self.__delete_all_value_is_none(request_list)
 
-        return request_list
+        return request_list, filepath
