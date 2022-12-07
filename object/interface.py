@@ -297,7 +297,11 @@ class interface(BaseModel):
         :return:
         """
         filename = self.download['file_name']
-        filepath = os.path.join(path('../download/'), filename)
+        download_dir = path('../download/')
+        filepath = os.path.join(download_dir, filename)
+
+        if not os.path.isdir(download_dir):
+            os.mkdir(download_dir)
         self.download = None
         return filepath
 
