@@ -9,6 +9,7 @@ from copy import deepcopy
 from pydantic import BaseModel, Field
 from typing import Text, Dict, Optional, List
 from utils.dict_operate import update_dict, delete_keys_from_dict_by_keys
+from utils.logger import log
 
 
 class interface(BaseModel):
@@ -87,6 +88,8 @@ class interface(BaseModel):
         """
         self.__seturl()
         model = self.dict()
+        print('\033[0;31m正在测试{}\033[0m'.format(self.interface_name))
+        log.debug('正在测试{}'.format(self.interface_name))
         params_dict = model.get('params', None)
         json_dict = model.get('json_', None)
         data_dict = model.get('data', None)
@@ -318,6 +321,8 @@ class interface(BaseModel):
         request_list = []
         # 获得params、json、data、files中所有正确和错误的参数列表
         correct, error = self.__get_all_correct_data_and_all_error_list()
+        log.debug('正确的参数{}'.format(correct))
+        log.debug('错误的参数{}'.format(error))
         # 所有可能的正确参数进行笛卡尔积，生成所有可能的正确参数请求列表
         correct_list = self.__get_correct_requests(correct, self.dict())
         # 判断是否为无参数请求
