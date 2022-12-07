@@ -97,13 +97,13 @@ class Env(BaseModel):
                 sys.exit(1)
 
     def __backend_login_no_permission(self) -> dict:
-        '''
+        """
         先从文件缓存中获取后台无权限x-token-no-permissions
         如果缓存中存在，直接将x-token以字典形式返回
         如果缓存中不存在，调用后台登陆接口，将x-token先存入文件缓存中，再将x-token以字典形式返回
 
         :return: 返回字典类型后台x-token
-        '''
+        """
 
         x_token_no_permission = self.cache.get('x-token-no-permissions', default=False)
         if x_token_no_permission:
