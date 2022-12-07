@@ -2,7 +2,7 @@
 # Author: Roger·J
 # Date: 2022/11/23 13:43
 # File: env.py
-
+import os
 import sys
 
 import diskcache
@@ -10,6 +10,7 @@ import requests
 from pydantic import BaseModel
 from typing import Text
 from diskcache import Cache
+from utils.logger import log
 
 
 class Env(BaseModel):
@@ -45,9 +46,12 @@ class Env(BaseModel):
                 raise Exception("小程序服务正在重启，请稍后再试")
             if response.text.__contains__('Token 失效'):
                 print("Token已经失效，请重新获取小程序code")
+                os.remove('../cache/user_cache/cache.db')
                 sys.exit(1)
-
+            print('缓存中拿到的token:\033[0;31m{token}\033[0m'.format(token=token))
+            log.debug('缓存中拿到的token:{token}'.format(token=token))
             return {'token': token}
+
         else:
             __login_wxapp_response = requests.post(url=self.wx_app_host + '/xct/auth/customerLoginByWeixin',
                                                    json={
@@ -61,6 +65,8 @@ class Env(BaseModel):
             try:
                 token = __login_wxapp_response.json()['data']['token']
                 self.cache.set('token', token)
+                print('微信重新登陆获取到的token:\033[0;31m{token}\033[0m'.format(token=token))
+                log.debug('微信重新登录获取到的token:{token}'.format(token=token))
                 return {'token': token}
             except KeyError:
                 print("小程序code失效请重新输入")
@@ -77,6 +83,8 @@ class Env(BaseModel):
 
         x_token = self.cache.get('x-token', default=False)
         if x_token:
+            print('缓存中拿到的x-token:\033[0;31m{x_token}\033[0m'.format(x_token=x_token))
+            log.debug('缓存中拿到的x-token:{x_token}'.format(x_token=x_token))
             return {'x-token': x_token}
         else:
             __login_backend_response = requests.post(url=self.backend_host + '/user/login',
@@ -91,6 +99,8 @@ class Env(BaseModel):
             try:
                 x_token = __login_backend_response.json()['data']['token']
                 self.cache.set('x-token', x_token)
+                print('重新登陆获取到的x-token:\033[0;31m{x_token}\033[0m'.format(x_token=x_token))
+                log.debug('重新登录获取到的x-token:{x_token}'.format(x_token=x_token))
                 return {'x-token': x_token}
             except TypeError:
                 print("后台用户名密码有误，请修改配置文件")
@@ -107,6 +117,10 @@ class Env(BaseModel):
 
         x_token_no_permission = self.cache.get('x-token-no-permissions', default=False)
         if x_token_no_permission:
+            print('缓存中拿到的x_token_no_permission:\033[0;31m{x_token_no_permission}\033[0m'
+                  .format(x_token_no_permission=x_token_no_permission))
+            log.debug('缓存中拿到的x_token_no_permission:{x_token_no_permission}'.format(
+                x_token_no_permission=x_token_no_permission))
             return {'x-token': x_token_no_permission}
         else:
             __login_backend_response = requests.post(url=self.backend_host + '/user/login',
@@ -121,6 +135,10 @@ class Env(BaseModel):
             try:
                 x_token_no_permission = __login_backend_response.json()['data']['token']
                 self.cache.set('x-token-no-permissions', x_token_no_permission)
+                print('重新登陆获取到的x_token_no_permission:\033[0;31m{x_token_no_permission}\033[0m'.format(
+                    x_token_no_permission=x_token_no_permission))
+                log.debug('重新登录获取到的x_token_no_permission:{x_token_no_permission}'.format(
+                    x_token_no_permission=x_token_no_permission))
                 return {'x-token': x_token_no_permission}
             except TypeError:
                 print("后台用户名密码有误，请修改配置文件")
