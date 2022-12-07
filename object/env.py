@@ -12,6 +12,10 @@ from typing import Text
 from diskcache import Cache
 from utils.logger import log
 
+path = lambda p: os.path.abspath(
+    os.path.join(os.path.dirname(__file__), p)
+)
+
 
 class Env(BaseModel):
     wx_app_host: Text
@@ -46,8 +50,9 @@ class Env(BaseModel):
                 raise Exception("小程序服务正在重启，请稍后再试")
             if response.text.__contains__('Token 失效'):
                 print("Token已经失效，请重新获取小程序code")
-                os.remove('../cache/user_cache/cache.db')
+                os.remove(path('../cache/user_cache/cache.db'))
                 sys.exit(1)
+
             print('缓存中拿到的token:\033[0;31m{token}\033[0m'.format(token=token))
             log.debug('缓存中拿到的token:{token}'.format(token=token))
             return {'token': token}

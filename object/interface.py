@@ -259,14 +259,16 @@ class interface(BaseModel):
 
         try:
             if self.headers['x-token'] is None:
+                x_token = env._Env__backend_login()
+                x_token_no_permission = env._Env__backend_login_no_permission()
                 for request in request_list:
                     # 对象名._类名__属性/方法 调用私有方法或者私有属性
-                    update_dict(request, env._Env__backend_login())
+                    update_dict(request, x_token)
 
                 request_xtoken_invalid = deepcopy(correct)
                 update_dict(request_xtoken_invalid, {'x-token': 'xxx'})
                 request_xtoken_no_permission = deepcopy(correct)
-                update_dict(request_xtoken_no_permission, env._Env__backend_login_no_permission())
+                update_dict(request_xtoken_no_permission, x_token_no_permission)
 
                 # 新增一个错误请求：x-token无效
                 request_list.append({'x-token无效': request_xtoken_invalid})
@@ -275,8 +277,9 @@ class interface(BaseModel):
 
         # 如果找不到x-token这个key，那么使用的就是token
         except KeyError:
+            token = env._Env__wx_login()
             for request in request_list:
-                update_dict(request, env._Env__wx_login())
+                update_dict(request, token)
             request_token_invalid = deepcopy(correct)
             update_dict(request_token_invalid, {'token': 'xxx'})
             # 新增一个错误请求：token无效
