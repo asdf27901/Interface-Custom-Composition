@@ -199,6 +199,8 @@ class interface(BaseModel):
 
         for optional in optional_list:
             delete_keys = []
+            delete_obj = None
+            add_dict = {}
 
             if optional.__contains__('|'):
                 # 根据字典推导式生成可选参数字典
@@ -206,22 +208,24 @@ class interface(BaseModel):
                 # tab=2&status=3|applyTimeBegin,applyTimeEnd  ----------> {'tab': '2', 'status': '3'}
                 condition_dict = {i.split('=')[0]: i.split('=')[1] for i in optional.split('|')[0].split('&')}
 
-                for correct in correct_list:
+                for request in request_list:
 
                     # 判断是否符合过滤条件
-                    if self.__check_whether_is_eligible(correct, condition_dict):
+                    if self.__check_whether_is_eligible(request, condition_dict):
                         info = '当' + optional.split('|')[0] + '时' + optional.split('|')[1] + '不传入'
-                        # 以正确的请求为模版进行深拷贝
-                        correct = deepcopy(correct)
 
                         for j in optional.split('|')[1].split(','):
                             # 将需要去掉的参数加入到delete_keys列表中
                             delete_keys.append(j)
 
                         # 根据key删除对应key
-                        delete_keys_from_dict_by_keys(correct, delete_keys)
-                        # 过滤掉的接口放入到请求列表
-                        request_list.append({info: correct})
+                        delete_keys_from_dict_by_keys(request, delete_keys)
+                        delete_obj = request
+                        add_dict = {info: request.get('所有都传入正确项', None)}
+                        break
+                        # # 过滤掉的接口放入到请求列表
+                request_list.remove(delete_obj)
+                request_list.append(add_dict)
 
             else:
                 info = optional + '不传入'
@@ -243,14 +247,18 @@ class interface(BaseModel):
         :param request_list: 组合生成的错误参数请求放入到列表
         :return: None
         """
-
+        error_dict = {}
         for d in error_list:
             for k, v in d.items():
-                for value in v:
-                    info = k + value.split(':')[0]
-                    model_dict = deepcopy(correct_model)
-                    update_dict(model_dict, {k: value.split(':')[1]})
-                    request_list.append({info: model_dict})
+                error_dict.setdefault(k, set()).update(v)
+
+        for k, v in error_dict.items():
+            for value in v:
+                index = value.index(":")
+                info = "{}{}".format(k, value[:index])
+                model_dict = deepcopy(correct_model)
+                update_dict(model_dict, {k: value.split(':')[1]})
+                request_list.append({info: model_dict})
 
     def __set_auth_requests(self, request_list: list, correct: dict, env: Env) -> None:
         """
@@ -321,12 +329,12 @@ class interface(BaseModel):
             for key, value in list(request.values())[0].items():
                 if value is None or key == 'optional':
                     delete_keys.append(key)
-                if key == 'json_' and value:
+                if key == 'json_' and value is not None:
                     delete_keys.append(key)
                     add = {'json': value}
-                if key == 'interface_name' and value:
+                if key == 'interface_name' and value is not None:
                     delete_keys.append(key)
-                if key == 'files' and value:
+                if key == 'files' and value is not None:
                     for k, v in value.items():
                         value[k] = open(v, 'rb')
 
@@ -355,14 +363,14 @@ class interface(BaseModel):
         if self.__check_is_no_request_params(correct, error):
             request_list.append({'没有任何参数的请求': self.dict()})
         else:
+            # 取得所有错误参数请求列表
+            self.__get_error_requests(error, correct_list[0], request_list)
             for correct in correct_list:
                 request_list.append({'所有都传入正确项': correct})
             # 如果self.optional不为空，要进行筛选项过滤
             if self.optional:
                 # 过滤可选参数
                 self.__filter_optional_parameters(correct_list, self.optional, request_list)
-            # 取得所有错误参数请求列表
-            self.__get_error_requests(error, correct_list[0], request_list)
         # 为请求中的x-token/token进行赋值
         self.__set_auth_requests(request_list, correct_list[0], env)
         # 删除key为None的key

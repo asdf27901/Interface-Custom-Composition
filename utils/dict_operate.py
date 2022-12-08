@@ -33,3 +33,12 @@ def get_model_dict(d: dict) -> dict:
     for i in pop:
         d.pop(i)
     return d
+
+
+def set_none_to_null(d: dict) -> None:
+    for key, value in d.items():
+        if isinstance(value, dict):
+            set_none_to_null(d[key])
+        else:
+            if value in ['None', 'null', 'none', 'Null', 'NULL']:
+                d[key] = None
