@@ -12,6 +12,7 @@ from utils.logger import log
 
 class responseAssert(BaseModel):
     response: Response
+    index: int
     filepath: Optional[str]
 
     class Config:
@@ -19,10 +20,15 @@ class responseAssert(BaseModel):
 
     def download_file(self):
         if self.filepath:
+            index_ = self.filepath.index('.')
+            left = self.filepath[:index_]
+            right = self.filepath[index_:]
+            self.filepath = '{}{}{}'.format(left, self.index, right)
             print("\033[0;32m正在下载{file}\033[0m".format(file=self.filepath))
             log.debug("正在下载{file}".format(file=self.filepath))
             with open(self.filepath, 'wb') as f:
                 f.write(self.response.content)
+                f.close()
                 print("\033[0;32m下载{file}完成\033[0m".format(file=self.filepath))
                 log.debug("下载{file}完成".format(file=self.filepath))
         return self
