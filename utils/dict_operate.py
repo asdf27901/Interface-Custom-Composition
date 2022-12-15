@@ -42,3 +42,15 @@ def set_none_to_null(d: dict) -> None:
         else:
             if value in ['None', 'null', 'none', 'Null', 'NULL']:
                 d[key] = None
+
+
+def whether_dict_in_dict(dict_a: dict, dict_b: dict) -> bool:
+    flag = False
+    for key in dict_a:
+        if dict_b.get(key, None) and dict_a[key] == dict_b[key]:
+            return True
+
+        if isinstance(dict_a[key], dict):
+            return whether_dict_in_dict(dict_a[key], dict_b)
+
+    return flag
