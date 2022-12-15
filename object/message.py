@@ -2,8 +2,8 @@
 # Author: Roger·J
 # Date: 2022/12/6 18:19
 # File: message.py
-import re
 
+import urllib.parse
 from pydantic import BaseModel
 from typing import Optional
 from requests import Response
@@ -64,11 +64,14 @@ class responseAssert(BaseModel):
         log.debug('请求url:{}'.format(self.response.url))
         print("请求头:{headers}".format(headers=self.response.request.headers))
         log.debug("请求头:{headers}".format(headers=self.response.request.headers))
-        try:
+        if isinstance(self.response.request.body, bytes):
             print('请求体:{body}\n'.format(body=self.response.request.body.decode('unicode-escape')))
             log.debug('请求体:{body}'.format(body=self.response.request.body.decode('unicode-escape')))
-        except AttributeError:
-            print('无请求体\n')
-            log.debug('无请求体')
+        else:
+            response_body = urllib.parse.unquote(self.response.request.body)
+            _body = [x for x in response_body.split('&')]
+            body = [{x.split('=')[0]: x.split('=')[1] for x in _body}][0]
+            print('表单参数:{body}\n'.format(body=body))
+            log.debug('表单参数:{body}'.format(body=body))
 
         return self
