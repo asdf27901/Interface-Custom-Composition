@@ -88,7 +88,6 @@ class Env(BaseModel):
 
         x_token = self.cache.get('x-token', default=False)
         if x_token:
-            print('缓存中拿到的x-token:\033[0;31m{x_token}\033[0m'.format(x_token=x_token))
             log.debug('缓存中拿到的x-token:{x_token}'.format(x_token=x_token))
             return {'x-token': x_token}
         else:
@@ -104,7 +103,6 @@ class Env(BaseModel):
             try:
                 x_token = __login_backend_response.json()['data']['token']
                 self.cache.set('x-token', x_token)
-                print('重新登陆获取到的x-token:\033[0;31m{x_token}\033[0m'.format(x_token=x_token))
                 log.debug('重新登录获取到的x-token:{x_token}'.format(x_token=x_token))
                 return {'x-token': x_token}
             except TypeError:
@@ -122,8 +120,6 @@ class Env(BaseModel):
 
         x_token_no_permission = self.cache.get('x-token-no-permissions', default=False)
         if x_token_no_permission:
-            print('缓存中拿到的x_token_no_permission:\033[0;31m{x_token_no_permission}\033[0m'
-                  .format(x_token_no_permission=x_token_no_permission))
             log.debug('缓存中拿到的x_token_no_permission:{x_token_no_permission}'.format(
                 x_token_no_permission=x_token_no_permission))
             return {'x-token': x_token_no_permission}
@@ -140,8 +136,6 @@ class Env(BaseModel):
             try:
                 x_token_no_permission = __login_backend_response.json()['data']['token']
                 self.cache.set('x-token-no-permissions', x_token_no_permission)
-                print('重新登陆获取到的x_token_no_permission:\033[0;31m{x_token_no_permission}\033[0m'.format(
-                    x_token_no_permission=x_token_no_permission))
                 log.debug('重新登录获取到的x_token_no_permission:{x_token_no_permission}'.format(
                     x_token_no_permission=x_token_no_permission))
                 return {'x-token': x_token_no_permission}

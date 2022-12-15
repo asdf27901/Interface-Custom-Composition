@@ -5,16 +5,19 @@
 
 import itertools
 import os
+import sys
+
 import object.env as Env
 from copy import deepcopy
 from pydantic import BaseModel, Field
 from typing import Text, Dict, Optional, List, Any
-from utils.dict_operate import update_dict, delete_keys_from_dict_by_keys
+from utils.dict_operate import *
 from utils.logger import log
 
 path = lambda p: os.path.abspath(
     os.path.join(os.path.dirname(__file__), p)
 )
+
 
 class interface(BaseModel):
     interface_name: Text
@@ -27,6 +30,7 @@ class interface(BaseModel):
     json_: Optional[Dict] = Field(alias='json')  # 由于BaseModel中存在json属性，所以取名为json_，备注名为json
     data: Optional[Dict]
     files: Optional[Dict]
+    necessary: Optional[List]
     optional: Optional[List]
     download: Optional[Dict]
 
@@ -139,12 +143,11 @@ class interface(BaseModel):
             return True
         return False
 
-    def __get_correct_requests(self, correct: list, dict_model: dict) -> list:
+    def __get_correct_requests(self, correct: list) -> list:
         """
         传入正确参数列表，将所有可能的正确参数进行笛卡尔积，生成所有可能的正确参数请求列表
 
         :param correct: params、json、data、files中所有正确参数列表
-        :param dict_model: 请求参数模版
         :return: correct_list
         """
         lis = []
@@ -160,8 +163,28 @@ class interface(BaseModel):
         for i in itertools.product(*lis):  # 将lis解包进行笛卡尔积
             zip_list.append(dict(zip(lis_key, i)))  # 将key与生成的笛卡尔积列表通过zip()方法组装，再通过dict()方法转成dict类型
 
+        if self.necessary:
+            for nec in self.necessary:
+                index = nec.index('?')
+                left = nec[:index].split('=')
+                right = nec[index+1:].split('=')
+                result = {left[0]: left[1]}
+                pre = {right[0]: right[1]}
+                index = 0
+                del_index = []
+                for i in zip_list:
+                    if whether_dict_in_dict(i, result) and not whether_dict_in_dict(i, pre):
+                        del_index.append(index)
+                    index += 1
+
+                if del_index:
+                    del_index = del_index[::-1]
+                    for index in del_index:
+                        del zip_list[index]
+            self.necessary = None
+
         for i in zip_list:
-            model2 = deepcopy(dict_model)  # 深拷贝模版对象，避免后续赋值修改模版对象的值
+            model2 = deepcopy(self.dict())  # 深拷贝模版对象，避免后续赋值修改模版对象的值
             update_dict(model2, i)  # 自定义方法去替换嵌套模版对象字典中的value
             correct_list.append(model2)
 
@@ -199,8 +222,8 @@ class interface(BaseModel):
 
         for optional in optional_list:
             delete_keys = []
-            delete_obj = None
-            add_dict = {}
+            delete_obj = []
+            add_obj = []
 
             if optional.__contains__('|'):
                 # 根据字典推导式生成可选参数字典
@@ -208,10 +231,10 @@ class interface(BaseModel):
                 # tab=2&status=3|applyTimeBegin,applyTimeEnd  ----------> {'tab': '2', 'status': '3'}
                 condition_dict = {i.split('=')[0]: i.split('=')[1] for i in optional.split('|')[0].split('&')}
 
-                for request in request_list:
+                for i in range(len(request_list)):
 
                     # 判断是否符合过滤条件
-                    if self.__check_whether_is_eligible(request, condition_dict):
+                    if self.__check_whether_is_eligible(request_list[i], condition_dict):
                         info = '当' + optional.split('|')[0] + '时' + optional.split('|')[1] + '不传入'
 
                         for j in optional.split('|')[1].split(','):
@@ -219,13 +242,13 @@ class interface(BaseModel):
                             delete_keys.append(j)
 
                         # 根据key删除对应key
-                        delete_keys_from_dict_by_keys(request, delete_keys)
-                        delete_obj = request
-                        add_dict = {info: request.get('所有都传入正确项', None)}
-                        break
-                        # # 过滤掉的接口放入到请求列表
-                request_list.remove(delete_obj)
-                request_list.append(add_dict)
+                        delete_keys_from_dict_by_keys(request_list[i], delete_keys)
+                        add_obj.append({info: request_list[i].get('所有都传入正确项', None)})
+                        delete_obj.append(request_list[i])
+
+                for delete in delete_obj:
+                    request_list.remove(delete)
+                request_list.extend(add_obj)
 
             else:
                 info = optional + '不传入'
@@ -257,7 +280,7 @@ class interface(BaseModel):
                 index = value.index(":")
                 info = "{}{}".format(k, value[:index])
                 model_dict = deepcopy(correct_model)
-                update_dict(model_dict, {k: value.split(':')[1]})
+                update_dict(model_dict, {k: value[index+1:]})
                 request_list.append({info: model_dict})
 
     def __set_auth_requests(self, request_list: list, correct: dict, env: Env) -> None:
@@ -358,13 +381,18 @@ class interface(BaseModel):
         if self.download:
             filepath = self.__create_download_file()
         # 所有可能的正确参数进行笛卡尔积，生成所有可能的正确参数请求列表
-        correct_list = self.__get_correct_requests(correct, self.dict())
+        correct_list = self.__get_correct_requests(correct)
         # 判断是否为无参数请求
         if self.__check_is_no_request_params(correct, error):
             request_list.append({'没有任何参数的请求': self.dict()})
         else:
-            # 取得所有错误参数请求列表
-            self.__get_error_requests(error, correct_list[0], request_list)
+            try:
+                # 取得所有错误参数请求列表
+                self.__get_error_requests(error, correct_list[0], request_list)
+            except IndexError:
+                log.error('list index out of range')
+                log.error('yaml文件中正确与错误项分隔符错误，或者没有设置正确项')
+                sys.exit(1)
             for correct in correct_list:
                 request_list.append({'所有都传入正确项': correct})
             # 如果self.optional不为空，要进行筛选项过滤
