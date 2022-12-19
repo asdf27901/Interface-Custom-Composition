@@ -6,13 +6,16 @@
 import itertools
 import os
 import sys
+from uuid import uuid4
 
 import object.env as Env
 from copy import deepcopy
 from pydantic import BaseModel, Field
-from typing import Text, Dict, Optional, List, Any
+from typing import Text, Dict, Optional, List, Any, Union
 from utils.dict_operate import *
 from utils.logger import log
+from collections import namedtuple
+from requests_toolbelt import MultipartEncoder
 
 path = lambda p: os.path.abspath(
     os.path.join(os.path.dirname(__file__), p)
@@ -33,10 +36,15 @@ class interface(BaseModel):
     necessary: Optional[List]
     optional: Optional[List]
     download: Optional[Dict]
+    request_list: Union[List] = []
 
     def __seturl(self) -> None:
         self.url = self.host + self.interface_address
         self.host, self.interface_address = None, None
+
+    def __modify_multipart(self, content_type):
+        self.headers['Content-Type'] = self.headers['Content-Type'] \
+            .replace('multipart/form-data', content_type)
 
     def __get_params_correct_data_and_params_error_list(self, params_dict: dict, correct_list: list = None,
                                                         error_list: list = None) -> (list, list):
@@ -167,7 +175,7 @@ class interface(BaseModel):
             for nec in self.necessary:
                 index = nec.index('?')
                 left = nec[:index].split('=')
-                right = nec[index+1:].split('=')
+                right = nec[index + 1:].split('=')
                 result = {left[0]: left[1]}
                 pre = {right[0]: right[1]}
                 index = 0
@@ -183,8 +191,11 @@ class interface(BaseModel):
                         del zip_list[index]
             self.necessary = None
 
+        request_dict = self.dict()
+        request_dict.pop('request_list')
+
         for i in zip_list:
-            model2 = deepcopy(self.dict())  # 深拷贝模版对象，避免后续赋值修改模版对象的值
+            model2 = deepcopy(request_dict)  # 深拷贝模版对象，避免后续赋值修改模版对象的值
             update_dict(model2, i)  # 自定义方法去替换嵌套模版对象字典中的value
             correct_list.append(model2)
 
@@ -209,7 +220,7 @@ class interface(BaseModel):
 
         return flag
 
-    def __filter_optional_parameters(self, correct_list: list, optional_list: list, request_list: list) -> None:
+    def __filter_optional_parameters(self, correct_list: list, optional_list: list, request) -> None:
         """
         如果optional参数中包含"｜"符号，则按"｜"进行拆分，如果符合条件则过滤到request_list
         如果optional参数中不包含"｜"符号，则按","进行拆分
@@ -231,10 +242,11 @@ class interface(BaseModel):
                 # tab=2&status=3|applyTimeBegin,applyTimeEnd  ----------> {'tab': '2', 'status': '3'}
                 condition_dict = {i.split('=')[0]: i.split('=')[1] for i in optional.split('|')[0].split('&')}
 
-                for i in range(len(request_list)):
-
+                for req in self.request_list:
+                    if '所有都传入正确项' not in req.info:
+                        continue
                     # 判断是否符合过滤条件
-                    if self.__check_whether_is_eligible(request_list[i], condition_dict):
+                    if self.__check_whether_is_eligible(req.request_dict, condition_dict):
                         info = '当' + optional.split('|')[0] + '时' + optional.split('|')[1] + '不传入'
 
                         for j in optional.split('|')[1].split(','):
@@ -242,13 +254,13 @@ class interface(BaseModel):
                             delete_keys.append(j)
 
                         # 根据key删除对应key
-                        delete_keys_from_dict_by_keys(request_list[i], delete_keys)
-                        add_obj.append({info: request_list[i].get('所有都传入正确项', None)})
-                        delete_obj.append(request_list[i])
+                        delete_keys_from_dict_by_keys(req.request_dict, delete_keys)
+                        add_obj.append(request(info=info, request_dict=req.request_dict))
+                        delete_obj.append(req)
 
                 for delete in delete_obj:
-                    request_list.remove(delete)
-                request_list.extend(add_obj)
+                    self.request_list.remove(delete)
+                self.request_list.extend(add_obj)
 
             else:
                 info = optional + '不传入'
@@ -259,9 +271,9 @@ class interface(BaseModel):
                 # 以正确的请求为模版进行深拷贝
                 correct = deepcopy(correct_list[0])
                 delete_keys_from_dict_by_keys(correct, delete_keys)
-                request_list.append({info: correct})
+                self.request_list.append(request(info=info, request_dict=correct))
 
-    def __get_error_requests(self, error_list: list, correct_model: dict, request_list: list) -> None:
+    def __get_error_requests(self, error_list: list, correct_model: dict, request) -> None:
         """
         遍历所有错误的参数列表，再遍历参数名下所有错误的值，替换掉正确请求模版中的值，最后放入到请求列表中
 
@@ -280,10 +292,10 @@ class interface(BaseModel):
                 index = value.index(":")
                 info = "{}{}".format(k, value[:index])
                 model_dict = deepcopy(correct_model)
-                update_dict(model_dict, {k: value[index+1:]})
-                request_list.append({info: model_dict})
+                update_dict(model_dict, {k: value[index + 1:]})
+                self.request_list.append(request(info=info, request_dict=model_dict))
 
-    def __set_auth_requests(self, request_list: list, correct: dict, env: Env) -> None:
+    def __set_auth_requests(self, request, correct: dict, env: Env) -> None:
         """
         为请求中的x-token/token进行赋值
 
@@ -297,9 +309,9 @@ class interface(BaseModel):
             if self.headers['x-token'] is None:
                 x_token = env._Env__backend_login()
                 x_token_no_permission = env._Env__backend_login_no_permission()
-                for request in request_list:
+                for req in self.request_list:
                     # 对象名._类名__属性/方法 调用私有方法或者私有属性
-                    update_dict(request, x_token)
+                    update_dict(req.request_dict, x_token)
 
                 request_xtoken_invalid = deepcopy(correct)
                 update_dict(request_xtoken_invalid, {'x-token': 'xxx'})
@@ -307,19 +319,19 @@ class interface(BaseModel):
                 update_dict(request_xtoken_no_permission, x_token_no_permission)
 
                 # 新增一个错误请求：x-token无效
-                request_list.append({'x-token无效': request_xtoken_invalid})
+                self.request_list.append(request(info='x-token无效', request_dict=request_xtoken_invalid))
                 # 新增一个错误请求：x-token无权限
-                request_list.append({'x-token无权限': request_xtoken_no_permission})
+                self.request_list.append(request(info='x-token无权限', request_dict=request_xtoken_no_permission))
 
         # 如果找不到x-token这个key，那么使用的就是token
         except KeyError:
             token = env._Env__wx_login()
-            for request in request_list:
-                update_dict(request, token)
+            for req in self.request_list:
+                update_dict(req.request_dict, token)
             request_token_invalid = deepcopy(correct)
             update_dict(request_token_invalid, {'token': 'xxx'})
             # 新增一个错误请求：token无效
-            request_list.append({'token无效': request_token_invalid})
+            self.request_list.append(request(info='token无效', request_dict=request_token_invalid))
 
     def __create_download_file(self) -> str:
         """
@@ -336,7 +348,7 @@ class interface(BaseModel):
         self.download = None
         return filepath
 
-    def __delete_all_value_is_none(self, request_list: list) -> None:
+    def __delete_all_value_is_none(self) -> None:
         """
         删除请求参数中value为None的key/key为optional
         如果存在json_且value不为None，修改key名为json
@@ -346,23 +358,34 @@ class interface(BaseModel):
         :return: None
         """
 
-        for request in request_list:
+        for request in self.request_list:
             delete_keys = []
             add = {}
-            for key, value in list(request.values())[0].items():
+            for key, value in request.request_dict.items():
+                if key == 'interface_name':
+                    delete_keys.append(key)
+
                 if value is None or key == 'optional':
                     delete_keys.append(key)
-                if key == 'json_' and value is not None:
+                elif key == 'json_' and value is not None:
                     delete_keys.append(key)
                     add = {'json': value}
-                if key == 'interface_name' and value is not None:
-                    delete_keys.append(key)
-                if key == 'files' and value is not None:
+                elif key == 'data' and value is not None:
+                    if 'multipart/form-data' in self.headers['Content-Type']:
+                        if request.request_dict['files']:
+                            for k, v in request.request_dict['files'].items():
+                                request.request_dict['data'].update({k: (v[v.rfind('/')+1:], open(v, 'rb'))})
+                            request.request_dict['files'] = None
+                        request.request_dict['data'] = MultipartEncoder(request.request_dict['data'])
+                        request.request_dict['headers']['Content-Type'] = request.request_dict['headers'][
+                            'Content-Type'].replace('multipart/form-data', request.request_dict['data'].content_type)
+
+                elif key == 'files' and value is not None:
                     for k, v in value.items():
                         value[k] = open(v, 'rb')
 
-            delete_keys_from_dict_by_keys(request, delete_keys)
-            list(request.values())[0].update(add)
+            delete_keys_from_dict_by_keys(request.request_dict, delete_keys)
+            request.request_dict.update(add)
 
     def get_all_requests(self, env: Env) -> [list, Any]:
         """
@@ -372,7 +395,7 @@ class interface(BaseModel):
         :return: request_list
         """
 
-        request_list = []
+        request = namedtuple(typename='request', field_names=['info', 'request_dict'])
         filepath = None
         # 获得params、json、data、files中所有正确和错误的参数列表
         correct, error = self.__get_all_correct_data_and_all_error_list()
@@ -384,24 +407,26 @@ class interface(BaseModel):
         correct_list = self.__get_correct_requests(correct)
         # 判断是否为无参数请求
         if self.__check_is_no_request_params(correct, error):
-            request_list.append({'没有任何参数的请求': self.dict()})
+            request_dict = self.dict()
+            request_dict.pop('request_list')
+            self.request_list.append({'没有任何参数的请求': request_dict})
         else:
             try:
                 # 取得所有错误参数请求列表
-                self.__get_error_requests(error, correct_list[0], request_list)
+                self.__get_error_requests(error, correct_list[0], request)
             except IndexError:
                 log.error('list index out of range')
                 log.error('yaml文件中正确与错误项分隔符错误，或者没有设置正确项')
                 sys.exit(1)
             for correct in correct_list:
-                request_list.append({'所有都传入正确项': correct})
+                self.request_list.append(request(info='所有都传入正确项', request_dict=correct))
             # 如果self.optional不为空，要进行筛选项过滤
             if self.optional:
                 # 过滤可选参数
-                self.__filter_optional_parameters(correct_list, self.optional, request_list)
+                self.__filter_optional_parameters(correct_list, self.optional, request)
         # 为请求中的x-token/token进行赋值
-        self.__set_auth_requests(request_list, correct_list[0], env)
+        self.__set_auth_requests(request, correct_list[0], env)
         # 删除key为None的key
-        self.__delete_all_value_is_none(request_list)
+        self.__delete_all_value_is_none()
 
-        return request_list, filepath
+        return self.request_list, filepath

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 from requests import Response
 from utils.logger import log
+from requests_toolbelt import MultipartEncoder
 
 
 class responseAssert(BaseModel):
@@ -68,10 +69,14 @@ class responseAssert(BaseModel):
             print('请求体:{body}\n'.format(body=self.response.request.body.decode('unicode-escape')))
             log.debug('请求体:{body}'.format(body=self.response.request.body.decode('unicode-escape')))
         else:
-            response_body = urllib.parse.unquote(self.response.request.body)
-            _body = [x for x in response_body.split('&')]
-            body = [{x.split('=')[0]: x.split('=')[1] for x in _body}][0]
-            print('表单参数:{body}\n'.format(body=body))
-            log.debug('表单参数:{body}'.format(body=body))
+            if isinstance(self.response.request.body, MultipartEncoder):
+                print('表单参数:{body}\n'.format(body=self.response.request.body.fields))
+                log.debug('表单参数:{body}'.format(body=self.response.request.body.fields))
+            else:
+                response_body = urllib.parse.unquote(self.response.request.body)
+                _body = [x for x in response_body.split('&')]
+                body = [{x.split('=')[0]: x.split('=')[1] for x in _body}][0]
+                print('表单参数:{body}\n'.format(body=body))
+                log.debug('表单参数:{body}'.format(body=body))
 
         return self
